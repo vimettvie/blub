@@ -157,11 +157,6 @@ function Kavo:ToggleUI()
                 )
             }):Play()
         end
-        if blur then
-            game.TweenService:Create(blur, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {
-                Size = 0
-            }):Play()
-        end
         task.delay(0.36, function()
             gui.Enabled = false
         end)
@@ -178,11 +173,6 @@ function Kavo:ToggleUI()
                     Size = savedSize
                 }):Play()
             end
-        end
-        if blur then
-            game.TweenService:Create(blur, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                Size = 24
-            }):Play()
         end
     end
 end
@@ -382,19 +372,57 @@ function Kavo.CreateLib(kavName, themeList)
     infoContainer.Size = UDim2.new(0, 368, 0, 33)
 
     
-    -- Blur effect for background
-    local lighting = game:GetService("Lighting")
-    local blur = lighting:FindFirstChild("KavoBlur")
-    if not blur then
-        blur = Instance.new("BlurEffect")
-        blur.Name = "KavoBlur"
-        blur.Size = 0
-        blur.Parent = lighting
+    -- Menu background overlay (local to the menu, not Lighting)
+    local menuBlurFrame = Instance.new("Frame")
+    menuBlurFrame.Name = "MenuBlur"
+    menuBlurFrame.Parent = Main
+    menuBlurFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    menuBlurFrame.BackgroundTransparency = 1
+    menuBlurFrame.BorderSizePixel = 0
+    menuBlurFrame.Size = UDim2.new(1, 0, 1, 0)
+    menuBlurFrame.Position = UDim2.new(0, 0, 0, 0)
+    menuBlurFrame.ZIndex = 0
+
+    local function ApplyMenuBlur(strength)
+        strength = math.clamp(tonumber(strength) or 0, 0, 100)
+        game.TweenService:Create(menuBlurFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            BackgroundTransparency = 1 - (strength / 100)
+        }):Play()
     end
-    -- Animate blur in on open
-    game.TweenService:Create(blur, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        Size = 24
-    }):Play()
+
+    local function ApplyFontSize(size)
+        size = math.clamp(tonumber(size) or 14, 8, 72)
+        for _, object in ipairs(ScreenGui:GetDescendants()) do
+            if object:IsA("TextLabel") or object:IsA("TextButton") or object:IsA("TextBox") then
+                object.TextSize = size
+            end
+        end
+    end
+
+    local function ApplyMenuFont(fontFace)
+        for _, object in ipairs(ScreenGui:GetDescendants()) do
+            if object:IsA("TextLabel") or object:IsA("TextButton") or object:IsA("TextBox") then
+                pcall(function() object.FontFace = fontFace end)
+            end
+        end
+    end
+
+    function Kavo:SetMenuBlur(strength)
+        ApplyMenuBlur(strength)
+    end
+
+    function Kavo:ChangeFontSize(size)
+        ApplyFontSize(size)
+    end
+
+    function Kavo:ChangeMenuFont(font)
+        if typeof(font) == "Font" then
+            ApplyMenuFont(font)
+            return true
+        end
+        warn("ChangeMenuFont expects a Roblox Font object (FontFace). Google Fonts CSS URLs cannot be loaded directly by Roblox.")
+        return false
+    end
 
     -- Animate Main opening
     local savedSize = Main.Size
@@ -405,18 +433,6 @@ function Kavo.CreateLib(kavName, themeList)
     game.TweenService:Create(Main, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
         Size = savedSize
     }):Play()
-
-    -- Remove blur when ScreenGui is destroyed
-    ScreenGui.AncestryChanged:Connect(function()
-        if not ScreenGui.Parent then
-            game.TweenService:Create(blur, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {
-                Size = 0
-            }):Play()
-            task.delay(0.35, function()
-                if blur and blur.Parent then blur:Destroy() end
-            end)
-        end
-    end)
 
     -- Keybind: K or Insert (підключаємо тут, після створення GUI)
     game:GetService("UserInputService").InputBegan:Connect(function(inputObj, gameProcessed)
