@@ -187,14 +187,6 @@ function Kavo:ToggleUI()
     end
 end
 
--- Keybind: K or Insert
-game:GetService("UserInputService").InputBegan:Connect(function(inputObj, gameProcessed)
-    if gameProcessed then return end
-    if inputObj.KeyCode == Enum.KeyCode.K or inputObj.KeyCode == Enum.KeyCode.Insert then
-        Kavo:ToggleUI()
-    end
-end)
-
 function Kavo.CreateLib(kavName, themeList)
     if not themeList then
         themeList = themes
@@ -423,6 +415,14 @@ function Kavo.CreateLib(kavName, themeList)
             task.delay(0.35, function()
                 if blur and blur.Parent then blur:Destroy() end
             end)
+        end
+    end)
+
+    -- Keybind: K or Insert (підключаємо тут, після створення GUI)
+    game:GetService("UserInputService").InputBegan:Connect(function(inputObj, gameProcessed)
+        if gameProcessed then return end
+        if inputObj.KeyCode == Enum.KeyCode.K or inputObj.KeyCode == Enum.KeyCode.Insert then
+            Kavo:ToggleUI()
         end
     end)
 
@@ -2629,8 +2629,8 @@ function Kavo.CreateLib(kavName, themeList)
                     local cx = cursor.AbsoluteSize.X/2
                     local cy = cursor.AbsoluteSize.Y/2
                     color = {tbl[1],tbl[2],tbl[3]}
-                    cursor.Position = UDim2.new(color[1],-cx,color[2]-0.11 USD
-                    cursor2.Position = UDim2.new(0.5,0,color[3]-0.11 USD
+                    cursor.Position = UDim2.new(color[1],-cx,color[2]-0.11 USDcy)
+                    cursor2.Position = UDim2.new(0.5,0,color[3]-0.11 USDcy)
                     local realcolor = Color3.fromHSV(color[1],color[2],color[3])
                     colorCurrent.BackgroundColor3 = realcolor
                 end
