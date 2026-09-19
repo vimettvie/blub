@@ -652,7 +652,7 @@ local FONT      = Enum.Font.Gotham
 local FONT_BOLD = Enum.Font.GothamBold
 
 local ActiveGui       -- ScreenGui останнього створеного меню
-local AccentObjects = {}
+local ActiveDestroy    -- функція повного вивантаження поточного меню
 
 -- ---------- дрібні помічники ----------
 local function new(class, props, parent)
@@ -705,45 +705,65 @@ local function layout(obj, horizontal, gap, align)
     return l
 end
 
+-- живі теми: категорія -> список {obj, prop}, оновлюються при Kavo:ChangeColor
+local ThemeObjects = {
+    Window = {},  -- Background
+    Panel  = {},  -- Header
+    Input  = {},  -- ElementColor
+    Text   = {},  -- TextColor
+    Accent = {},  -- SchemeColor
+}
+
+local function themed(category, obj, prop)
+    table.insert(ThemeObjects[category], {obj = obj, prop = prop})
+end
+
+-- зворотна сумісність зі старою назвою хелпера
 local function accent(obj, prop)
-    table.insert(AccentObjects, {obj = obj, prop = prop})
+    themed("Accent", obj, prop)
 end
 
 function Kavo:ToggleUI()
     local gui = ActiveGui
     if not gui then return end
     local mainFrame = gui:FindFirstChild("Main", true)
+    if not mainFrame then return end
 
     if guiVisible then
         guiVisible = false
-        if mainFrame then
-            mainFrame:SetAttribute("SavedPosition", mainFrame.Position)
-            mainFrame:SetAttribute("SavedSize", mainFrame.Size)
-            tween:Create(mainFrame, tweeninfo(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {
-                Size = UDim2.new(0, 0, 0, 0),
-                Position = UDim2.new(
-                    0, mainFrame.AbsolutePosition.X + (mainFrame.AbsoluteSize.X / 2),
-                    0, mainFrame.AbsolutePosition.Y + (mainFrame.AbsoluteSize.Y / 2)
-                )
-            }):Play()
-        end
-        task.delay(0.3, function()
-            if gui then gui.Enabled = false end
+        mainFrame:SetAttribute("SavedPosition", mainFrame.Position)
+        mainFrame:SetAttribute("SavedSize", mainFrame.Size)
+        local t = tween:Create(mainFrame, tweeninfo(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+            Size = UDim2.new(0, 0, 0, 0),
+            Position = UDim2.new(
+                0, mainFrame.AbsolutePosition.X + (mainFrame.AbsoluteSize.X / 2),
+                0, mainFrame.AbsolutePosition.Y + (mainFrame.AbsoluteSize.Y / 2)
+            )
+        })
+        t:Play()
+        t.Completed:Connect(function()
+            if not guiVisible then
+                gui.Enabled = false
+            end
         end)
     else
         guiVisible = true
         gui.Enabled = true
-        if mainFrame then
-            local savedPos = mainFrame:GetAttribute("SavedPosition")
-            local savedSize = mainFrame:GetAttribute("SavedSize")
-            if savedPos and savedSize then
-                mainFrame.Position = savedPos
-                mainFrame.Size = UDim2.new(0, 0, 0, 0)
-                tween:Create(mainFrame, tweeninfo(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-                    Size = savedSize
-                }):Play()
-            end
+        local savedPos = mainFrame:GetAttribute("SavedPosition")
+        local savedSize = mainFrame:GetAttribute("SavedSize")
+        if savedPos and savedSize then
+            mainFrame.Position = savedPos
+            mainFrame.Size = UDim2.new(0, 0, 0, 0)
+            tween:Create(mainFrame, tweeninfo(0.32, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Size = savedSize
+            }):Play()
         end
+    end
+end
+
+function Kavo:UnloadUI()
+    if ActiveDestroy then
+        ActiveDestroy()
     end
 end
 
@@ -810,6 +830,9 @@ function Kavo.CreateLib(...)
     ActiveGui = ScreenGui
     guiVisible = true
 
+    local MIN_W, MIN_H = winW, winH
+    local MAX_W, MAX_H = winW + 500, winH + 500
+
     local Main = new("Frame", {
         Name = "Main",
         BackgroundColor3 = P.Window,
@@ -818,10 +841,8 @@ function Kavo.CreateLib(...)
         Position = UDim2.new(0.5, -winW / 2, 0.5, -winH / 2),
         ClipsDescendants = true,
     }, ScreenGui)
-    Objects[Main] = "BackgroundColor3"
+    themed("Window", Main, "BackgroundColor3")
     corner(Main, 10)
-    Main:SetAttribute("SavedSize", Main.Size)
-    Main:SetAttribute("SavedPosition", Main.Position)
 
     AttachBackground(Main, ScreenGui, themeList, flags, function() end)
 
@@ -836,6 +857,7 @@ function Kavo.CreateLib(...)
     -- ------------------------------ HEADER ------------------------------
     local header = new("Frame", {
         Name = "Header",
+        Active = true,
         BackgroundTransparency = 1,
         Size = UDim2.new(1, 0, 0, 26),
         ZIndex = 2,
@@ -843,46 +865,60 @@ function Kavo.CreateLib(...)
     Kavo:DraggingEnabled(header, Main)
 
     local logoGroup = new("Frame", {
+        Name = "Title",
         BackgroundTransparency = 1,
-        Size = UDim2.new(0, 220, 1, 0),
+        Size = UDim2.new(0, 150, 1, 0),
     }, header)
-
-    local mark1 = new("Frame", {
-        BackgroundColor3 = P.Accent,
-        BorderSizePixel = 0,
-        Size = UDim2.new(0, 9, 0, 22),
-        Position = UDim2.new(0, 2, 0, 2),
-        Rotation = 18,
-    }, logoGroup)
-    corner(mark1, 3)
-    accent(mark1, "BackgroundColor3")
-
-    local mark2 = new("Frame", {
-        BackgroundColor3 = SOFT_COLOR,
-        BorderSizePixel = 0,
-        Size = UDim2.new(0, 9, 0, 22),
-        Position = UDim2.new(0, 12, 0, 2),
-        Rotation = -18,
-    }, logoGroup)
-    corner(mark2, 3)
 
     new("TextLabel", {
         BackgroundTransparency = 1,
-        Position = UDim2.new(0, 30, 0, 0),
-        Size = UDim2.new(1, -30, 1, 0),
+        Size = UDim2.new(1, 0, 1, 0),
         Font = FONT_BOLD,
         Text = kavName,
         TextSize = 14,
         TextColor3 = P.Text,
         TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd,
         RichText = true,
-    }, logoGroup)
+    }, logoGroup).Name = "TitleLabel"
+    themed("Text", logoGroup.TitleLabel, "TextColor3")
+
+    -- кнопка вивантаження (unload) — справа у хедері
+    local closeBtn = new("TextButton", {
+        Name = "Close",
+        BackgroundColor3 = P.Input,
+        BorderSizePixel = 0,
+        AutoButtonColor = false,
+        AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, 0, 0.5, 0),
+        Size = UDim2.new(0, 24, 0, 24),
+        Font = FONT_BOLD,
+        Text = "×",
+        TextSize = 15,
+        TextColor3 = MUTED_COLOR,
+        ZIndex = 3,
+    }, header)
+    themed("Input", closeBtn, "BackgroundColor3")
+    corner(closeBtn, 6)
+    local closeStroke = stroke(closeBtn, P.Stroke)
+
+    closeBtn.MouseEnter:Connect(function()
+        closeStroke.Color = P.Accent
+        closeBtn.TextColor3 = SOFT_COLOR
+    end)
+    closeBtn.MouseLeave:Connect(function()
+        closeStroke.Color = P.Stroke
+        closeBtn.TextColor3 = MUTED_COLOR
+    end)
+    closeBtn.MouseButton1Click:Connect(function()
+        Kavo:UnloadUI()
+    end)
 
     local tabHolder = new("Frame", {
         Name = "Tabs",
         BackgroundTransparency = 1,
-        Size = UDim2.new(1, -230, 1, 0),
-        Position = UDim2.new(0, 230, 0, 0),
+        Size = UDim2.new(1, -190, 1, 0),
+        Position = UDim2.new(0, 158, 0, 0),
         ZIndex = 2,
     }, header)
     layout(tabHolder, true, 8, Enum.HorizontalAlignment.Right)
@@ -896,6 +932,99 @@ function Kavo.CreateLib(...)
         ZIndex = 2,
     }, root)
 
+    -- --------------------------- RESIZE GRIP ---------------------------
+    local grip = new("TextButton", {
+        Name = "ResizeGrip",
+        AnchorPoint = Vector2.new(1, 1),
+        Position = UDim2.new(1, 0, 1, 0),
+        Size = UDim2.new(0, 18, 0, 18),
+        BackgroundTransparency = 1,
+        AutoButtonColor = false,
+        Text = "",
+        ZIndex = 1001,
+    }, Main)
+    for _, p in ipairs({{12, 4}, {8, 8}, {12, 8}, {4, 12}, {8, 12}, {12, 12}}) do
+        local d = new("Frame", {
+            BackgroundColor3 = MUTED_COLOR,
+            BackgroundTransparency = 0.3,
+            BorderSizePixel = 0,
+            Position = UDim2.new(0, p[1], 0, p[2]),
+            Size = UDim2.new(0, 2, 0, 2),
+            ZIndex = 1002,
+        }, grip)
+        corner(d, 1)
+    end
+
+    local resizing, startMouse, startSize = false, Vector2.zero, Vector2.zero
+    grip.InputBegan:Connect(function(io)
+        if io.UserInputType == Enum.UserInputType.MouseButton1 or io.UserInputType == Enum.UserInputType.Touch then
+            resizing = true
+            startMouse = Vector2.new(io.Position.X, io.Position.Y)
+            startSize = Main.AbsoluteSize
+        end
+    end)
+    input.InputChanged:Connect(function(io)
+        if resizing and (io.UserInputType == Enum.UserInputType.MouseMovement or io.UserInputType == Enum.UserInputType.Touch) then
+            local delta = Vector2.new(io.Position.X, io.Position.Y) - startMouse
+            local nw = math.clamp(math.floor(startSize.X + delta.X), MIN_W, MAX_W)
+            local nh = math.clamp(math.floor(startSize.Y + delta.Y), MIN_H, MAX_H)
+            Main.Size = UDim2.new(0, nw, 0, nh)
+        end
+    end)
+    input.InputEnded:Connect(function(io)
+        if resizing and (io.UserInputType == Enum.UserInputType.MouseButton1 or io.UserInputType == Enum.UserInputType.Touch) then
+            resizing = false
+            Main:SetAttribute("SavedSize", Main.Size)
+            Main:SetAttribute("SavedPosition", Main.Position)
+        end
+    end)
+
+    -- відкриваємо вікно анімовано
+    local openSize = Main.Size
+    local openPos = Main.Position
+    Main:SetAttribute("SavedSize", openSize)
+    Main:SetAttribute("SavedPosition", openPos)
+    Main.Size = UDim2.new(0, 0, 0, 0)
+    Main.Position = UDim2.new(openPos.X.Scale, openPos.X.Offset + winW / 2, openPos.Y.Scale, openPos.Y.Offset + winH / 2)
+    tween:Create(Main, tweeninfo(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Size = openSize,
+        Position = openPos,
+    }):Play()
+
+    -- перемикання по K / Insert
+    local inputConn
+    inputConn = input.InputBegan:Connect(function(inputObj, gameProcessed)
+        if gameProcessed then return end
+        if inputObj.KeyCode == Enum.KeyCode.K or inputObj.KeyCode == Enum.KeyCode.Insert then
+            Kavo:ToggleUI()
+        end
+    end)
+
+    ActiveDestroy = function()
+        if inputConn then inputConn:Disconnect() end
+        local t = tween:Create(Main, tweeninfo(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+            Size = UDim2.new(0, 0, 0, 0),
+            Position = UDim2.new(
+                0, Main.AbsolutePosition.X + (Main.AbsoluteSize.X / 2),
+                0, Main.AbsolutePosition.Y + (Main.AbsoluteSize.Y / 2)
+            )
+        })
+        t:Play()
+        t.Completed:Connect(function()
+            ScreenGui:Destroy()
+        end)
+        if ActiveGui == ScreenGui then
+            ActiveGui = nil
+            ActiveDestroy = nil
+        end
+    end
+    ScreenGui.Destroying:Connect(function()
+        if ActiveGui == ScreenGui then
+            ActiveGui = nil
+            ActiveDestroy = nil
+        end
+    end)
+
     -- сумісність зі старим API
     function Kavo:SetMenuBlur() end
     function Kavo:ChangeFontSize() end
@@ -906,15 +1035,28 @@ function Kavo.CreateLib(...)
             end
         end
     end
+    local function applyThemeCategory(category, color)
+        for _, d in pairs(ThemeObjects[category]) do
+            pcall(function() d.obj[d.prop] = color end)
+        end
+    end
+
     function Kavo:ChangeColor(prope, color)
         if prope == "SchemeColor" then
             P.Accent = color
-            for _, d in pairs(AccentObjects) do
-                pcall(function() d.obj[d.prop] = color end)
-            end
+            applyThemeCategory("Accent", color)
         elseif prope == "Background" then
             P.Window = color
-            Main.BackgroundColor3 = color
+            applyThemeCategory("Window", color)
+        elseif prope == "Header" then
+            P.Panel = color
+            applyThemeCategory("Panel", color)
+        elseif prope == "ElementColor" then
+            P.Input = color
+            applyThemeCategory("Input", color)
+        elseif prope == "TextColor" then
+            P.Text = color
+            applyThemeCategory("Text", color)
         end
         themeList[prope] = color
     end
@@ -930,6 +1072,7 @@ function Kavo.CreateLib(...)
             Name = tabName,
             BackgroundTransparency = 1,
             BorderSizePixel = 0,
+            Active = true,
             Size = UDim2.new(1, 0, 1, 0),
             CanvasSize = UDim2.new(0, 0, 0, 0),
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
@@ -939,6 +1082,17 @@ function Kavo.CreateLib(...)
             Visible = false,
             ZIndex = 2,
         }, workspaceFrame)
+
+        local fadeOverlay = new("Frame", {
+            Name = "Fade",
+            BackgroundColor3 = P.Window,
+            BorderSizePixel = 0,
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            Visible = false,
+            ZIndex = 50,
+        }, page)
+        themed("Window", fadeOverlay, "BackgroundColor3")
 
         local holder = new("Frame", {
             BackgroundTransparency = 1,
@@ -984,16 +1138,25 @@ function Kavo.CreateLib(...)
             TextColor3 = TABTEXT_COLOR,
         }, tabBtn)
 
-        local entry = {btn = tabBtn, page = page, stroke = tabStroke, label = tabLabel}
+        local entry = {btn = tabBtn, page = page, fade = fadeOverlay, stroke = tabStroke, label = tabLabel}
         table.insert(tabList, entry)
 
         local function select()
             for _, t in pairs(tabList) do
                 local on = (t == entry)
-                t.page.Visible = on
                 Utility:TweenObject(t.btn, {BackgroundTransparency = on and 0.92 or 1}, 0.15)
                 t.stroke.Transparency = on and 0.8 or 1
                 t.label.TextColor3 = on and P.Text or TABTEXT_COLOR
+                if on then
+                    t.page.Visible = true
+                    t.fade.Visible = true
+                    t.fade.BackgroundTransparency = 0.35
+                    tween:Create(t.fade, tweeninfo(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                        BackgroundTransparency = 1
+                    }):Play()
+                else
+                    t.page.Visible = false
+                end
             end
             selected = entry
         end
@@ -1025,7 +1188,7 @@ function Kavo.CreateLib(...)
                 AutomaticSize = Enum.AutomaticSize.Y,
                 ZIndex = 2,
             }, columns[target])
-            Objects[panel] = "BackgroundColor3"
+            themed("Panel", panel, "BackgroundColor3")
             corner(panel, 8)
             stroke(panel, P.Stroke)
             padd(panel, 16, 16, 16, 16)
@@ -1041,7 +1204,7 @@ function Kavo.CreateLib(...)
                 ZIndex = 2,
             }, panel)
 
-            new("TextLabel", {
+            local secLabel = new("TextLabel", {
                 BackgroundTransparency = 1,
                 Size = UDim2.new(1, -16, 1, 0),
                 Font = FONT_BOLD,
@@ -1051,6 +1214,7 @@ function Kavo.CreateLib(...)
                 TextXAlignment = Enum.TextXAlignment.Left,
                 ZIndex = 2,
             }, head)
+            themed("Text", secLabel, "TextColor3")
 
             local arrow = new("TextLabel", {
                 BackgroundTransparency = 1,
@@ -1072,18 +1236,48 @@ function Kavo.CreateLib(...)
                 ZIndex = 2,
             }, panel)
 
-            local content = new("Frame", {
+            local clip = new("Frame", {
+                Name = "Clip",
                 BackgroundTransparency = 1,
+                ClipsDescendants = true,
                 Size = UDim2.new(1, 0, 0, 0),
                 AutomaticSize = Enum.AutomaticSize.Y,
                 LayoutOrder = 3,
                 ZIndex = 2,
             }, panel)
+
+            local content = new("Frame", {
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, 0, 0, 0),
+                AutomaticSize = Enum.AutomaticSize.Y,
+                ZIndex = 2,
+            }, clip)
             layout(content, false, 12)
 
+            local expanded = true
             head.MouseButton1Click:Connect(function()
-                content.Visible = not content.Visible
-                arrow.Rotation = content.Visible and 0 or 180
+                expanded = not expanded
+                Utility:TweenObject(arrow, {Rotation = expanded and 0 or 180}, 0.18)
+                if expanded then
+                    local target = content.AbsoluteSize.Y
+                    clip.AutomaticSize = Enum.AutomaticSize.None
+                    clip.Size = UDim2.new(1, 0, 0, 0)
+                    tween:Create(clip, tweeninfo(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                        Size = UDim2.new(1, 0, 0, target)
+                    }):Play()
+                    task.delay(0.23, function()
+                        if expanded then
+                            clip.AutomaticSize = Enum.AutomaticSize.Y
+                        end
+                    end)
+                else
+                    local current = content.AbsoluteSize.Y
+                    clip.AutomaticSize = Enum.AutomaticSize.None
+                    clip.Size = UDim2.new(1, 0, 0, current)
+                    tween:Create(clip, tweeninfo(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                        Size = UDim2.new(1, 0, 0, 0)
+                    }):Play()
+                end
             end)
 
             -- ------------------- базові цеглинки -------------------
@@ -1112,7 +1306,7 @@ function Kavo.CreateLib(...)
                     Position = UDim2.new(1, -w, 0.5, -h / 2),
                     ZIndex = 2,
                 }, parent)
-                Objects[box] = "BackgroundColor3"
+                themed("Input", box, "BackgroundColor3")
                 corner(box, 4)
                 stroke(box, P.Stroke)
                 return box
@@ -1154,7 +1348,7 @@ function Kavo.CreateLib(...)
                     Position = UDim2.new(0, 0, 0.5, -2),
                     ZIndex = 2,
                 }, bar)
-                Objects[track] = "BackgroundColor3"
+                themed("Input", track, "BackgroundColor3")
                 corner(track, 2)
 
                 local fill = new("Frame", {
@@ -1263,7 +1457,7 @@ function Kavo.CreateLib(...)
                     Position = UDim2.new(0, 0, 0.5, -7),
                     ZIndex = 2,
                 }, row)
-                Objects[box] = "BackgroundColor3"
+                themed("Input", box, "BackgroundColor3")
                 corner(box, 3)
                 stroke(box, P.Stroke)
 
@@ -1399,7 +1593,7 @@ function Kavo.CreateLib(...)
                     AnchorPoint = Vector2.new(1, 0),
                     ZIndex = 2,
                 }, row)
-                Objects[boxBtn] = "BackgroundColor3"
+                themed("Input", boxBtn, "BackgroundColor3")
                 corner(boxBtn, 4)
                 stroke(boxBtn, P.Stroke)
                 padd(boxBtn, 0, 0, 12, 12)
@@ -1443,7 +1637,7 @@ function Kavo.CreateLib(...)
                             TextColor3 = P.Muted,
                             ZIndex = 3,
                         }, optionHolder)
-                        Objects[opt] = "BackgroundColor3"
+                        themed("Input", opt, "BackgroundColor3")
                         corner(opt, 4)
                         stroke(opt, P.Stroke)
 
@@ -1516,7 +1710,7 @@ function Kavo.CreateLib(...)
                     TextColor3 = P.Text,
                     ZIndex = 2,
                 })
-                Objects[btn] = "BackgroundColor3"
+                themed("Input", btn, "BackgroundColor3")
                 corner(btn, 4)
                 local bs = stroke(btn, P.Stroke)
 
