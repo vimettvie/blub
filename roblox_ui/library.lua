@@ -122,6 +122,32 @@ local themeStyles = {
 }
 local oldTheme = ""
 
+-- =====================================================================
+--  API: Library:GetTheme()
+--  Повертає копію активної теми з поточними кольорами
+--  (враховує і вибрану тему, і зміни через Library:ChangeColor).
+--
+--  local Theme = Library:GetTheme()
+--  print(Theme.SchemeColor, Theme.Background, Theme.Header,
+--        Theme.TextColor, Theme.ElementColor)
+-- =====================================================================
+local THEME_KEYS = { "SchemeColor", "Background", "Header", "TextColor", "ElementColor" }
+local activeTheme = themes -- оновлюється в CreateLib на тему створеного вікна
+
+function Kavo:GetTheme()
+    local copy = {}
+    for k, v in pairs(activeTheme) do
+        copy[k] = v
+    end
+    -- гарантуємо, що всі 5 ключів завжди присутні
+    for _, key in ipairs(THEME_KEYS) do
+        if copy[key] == nil then
+            copy[key] = themes[key]
+        end
+    end
+    return copy
+end
+
 local SettingsT = {
 
 }
@@ -653,20 +679,29 @@ function Kavo.CreateLib(...)
     elseif themeList == "Serpent" then
         themeList = themeStyles.Serpent
     else
+        if type(themeList) ~= "table" then
+            themeList = themes
+        end
+        -- незалежні перевірки: раніше через elseif дефолтом заповнювався лише перший відсутній ключ
         if themeList.SchemeColor == nil then
             themeList.SchemeColor = Color3.fromRGB(74, 99, 135)
-        elseif themeList.Background == nil then
+        end
+        if themeList.Background == nil then
             themeList.Background = Color3.fromRGB(36, 37, 43)
-        elseif themeList.Header == nil then
+        end
+        if themeList.Header == nil then
             themeList.Header = Color3.fromRGB(28, 29, 34)
-        elseif themeList.TextColor == nil then
+        end
+        if themeList.TextColor == nil then
             themeList.TextColor = Color3.fromRGB(255,255,255)
-        elseif themeList.ElementColor == nil then
+        end
+        if themeList.ElementColor == nil then
             themeList.ElementColor = Color3.fromRGB(32, 32, 38)
         end
     end
 
     themeList = themeList or {}
+    activeTheme = themeList -- Library:GetTheme() тепер віддає цю тему
     local selectedTab 
     kavName = kavName or "Library"
     table.insert(Kavo, kavName)
